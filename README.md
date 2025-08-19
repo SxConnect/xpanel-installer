@@ -1,18 +1,21 @@
-#Instalador xPanel com Traefik
+# xPanel Installer with Traefik
 
-Este repositório contém um **instalador automático** para o **xPanel**, com suporte a **SSL automático**, **proxy reverso** e **segurança total**.
+O instalador oficial do **xPanel** com **proxy reverso (Traefik)**, **SSL automático**, **backup configurável** e **segurança por padrão**.
 
 > ✅ Instalação em 2 minutos  
-> ✅ SSL automático com Let's Encrypt  
-> ✅ Seguro: credenciais protegidas com `chmod 600`  
-> ✅ Escalável: adicione serviços futuros (Portainer, API, etc)  
-> ✅ Dashboard do Traefik opcional  
+> 🔐 SSL com Let's Encrypt  
+> 📦 Backup automático (diário/semanal/horário)  
+> 🛡️ Firewall + Fail2Ban + credenciais protegidas  
+> 🔄 Atualizações fáceis com `xpanel-update`  
 
 ---
 
-## 🚀 Como Usar
+## 🚀 Como Instalar
 
-### 1. Instalar na VPS (Linux)
+Execute um único comando na sua VPS (Ubuntu 20.04/22.04/24.04):
+
+```bash
+bash <(curl -sSL https://xpanel.sh)
 
 ```bash
 

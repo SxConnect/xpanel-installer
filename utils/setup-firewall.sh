@@ -33,6 +33,7 @@ fi
 # === Mostrar estado atual ===
 if ufw status | grep -q "Status: active"; then
     warn "O UFW já está ativo. Mantendo configuração atual."
+    # ❌ Não use exit 0 aqui — o script pai precisa continuar
     exit 0
 fi
 
@@ -58,12 +59,11 @@ read -n1 -r REPLY; echo
 
 if [[ ! $REPLY =~ ^[Ss]$ ]]; then
     warn "Firewall não ativado. Execute 'ufw enable' depois, se desejar."
-    exit 0
+else
+    # === Ativar UFW ===
+    echo 'y' | ufw enable > /dev/null 2>&1 || error "Falha ao ativar UFW"
+    success "UFW ativado com sucesso"
 fi
-
-# === Ativar UFW ===
-echo 'y' | ufw enable > /dev/null 2>&1 || error "Falha ao ativar UFW"
-success "UFW ativado com sucesso"
 
 # === Mostrar status ===
 echo -e "

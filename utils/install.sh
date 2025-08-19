@@ -17,7 +17,7 @@ LOG_FILE="$SCRIPT_DIR/install.log"
 TRAEFIK_DIR="/opt/traefik"
 CONFIG_DIR="/opt/xpanel-config"
 BACKUP_DIR="/opt/backups"
-GITHUB_TRAEFIK_COMPOSE="https://raw.githubusercontent.com/seuusuario/xpanel-installer/main/traefik/docker-compose.yml"
+GITHUB_TRAEFIK_COMPOSE="https://raw.githubusercontent.com/SxConnect/xpanel-installer/main/traefik/docker-compose.yml"
 GITHUB_XPANEL_REPO="https://github.com/seuusuario/xpanel-config.git"
 
 # Funções
@@ -229,7 +229,7 @@ O xPanel foi instalado com sucesso com Traefik e SSL automático.
 
 ```bash
 # === Criar alias para xpanel.sh ===
-echo "alias xpanel='bash <(curl -sSL https://raw.githubusercontent.com/seuusuario/xpanel-installer/main/utils/install.sh)'" >> /root/.bashrc
+echo "alias xpanel='bash <(curl -sSL https://raw.githubusercontent.com/SxConnect/xpanel-installer/main/utils/install.sh)'" >> /root/.bashrc
 success "Alias 'xpanel' adicionado ao .bashrc"
 "
 

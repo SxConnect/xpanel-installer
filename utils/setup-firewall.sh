@@ -30,42 +30,39 @@ if ! command -v ufw &> /dev/null; then
     success "UFW instalado"
 fi
 
-# === Mostrar estado atual ===
+# === Se já estiver ativo, pula configuração, mas não sai do script ===
 if ufw status | grep -q "Status: active"; then
-    warn "O UFW já está ativo. Mantendo configuração atual."
-    # ❌ Não use exit 0 aqui — o script pai precisa continuar
-    exit 0
-fi
-
-# === Configurar regras ===
-log "Configurando regras do firewall..."
-
-ufw default deny incoming
-ufw default allow outgoing
-success "Política: bloquear entrada, permitir saída"
-
-ufw allow 22/tcp    # SSH
-ufw allow 80/tcp    # HTTP
-ufw allow 443/tcp   # HTTPS
-success "Portas 22, 80 e 443 liberadas"
-
-# === Perguntar se deseja ativar ===
-echo -e "\n${YELLOW}Ativar o firewall agora? (s/n)${NC}"
-echo "   - SSH (22) permanecerá acessível"
-echo "   - HTTP/HTTPS (80/443) liberados"
-echo "   - Outras portas bloqueadas"
-echo -n "Ativar UFW? (s/n): "
-read -n1 -r REPLY; echo
-
-if [[ ! $REPLY =~ ^[Ss]$ ]]; then
-    warn "Firewall não ativado. Execute 'ufw enable' depois, se desejar."
+    warn "O UFW já está ativo. Pulando configuração de regras."
 else
-    # === Ativar UFW ===
-    echo 'y' | ufw enable > /dev/null 2>&1 || error "Falha ao ativar UFW"
-    success "UFW ativado com sucesso"
+    # === Configurar regras ===
+    log "Configurando regras do firewall..."
+
+    ufw default deny incoming || true
+    ufw default allow outgoing || true
+    success "Política: bloquear entrada, permitir saída"
+
+    ufw allow 22/tcp || true
+    ufw allow 80/tcp || true
+    ufw allow 443/tcp || true
+    success "Portas 22, 80 e 443 liberadas"
+
+    # === Perguntar se deseja ativar ===
+    echo -e "\n${YELLOW}Ativar o firewall agora? (s/n)${NC}"
+    echo "   - SSH (22) permanecerá acessível"
+    echo "   - HTTP/HTTPS (80/443) liberados"
+    echo "   - Outras portas bloqueadas"
+    echo -n "Ativar UFW? (s/n): "
+    read -n1 -r REPLY; echo
+
+    if [[ $REPLY =~ ^[Ss]$ ]]; then
+        echo 'y' | ufw enable > /dev/null 2>&1 || error "Falha ao ativar UFW"
+        success "UFW ativado com sucesso"
+    else
+        warn "Firewall não ativado. Execute 'ufw enable' depois, se desejar."
+    fi
 fi
 
-# === Mostrar status ===
+# === Mostrar status final ===
 echo -e "
 ${GREEN}✅ FIREWALL CONFIGURADO${NC}
 Regras ativas:

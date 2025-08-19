@@ -20,7 +20,7 @@ BACKUP_DIR="/opt/backups"
 
 # Funções
 log() { echo -e "[$(date +'%H:%M:%S')] $1" | tee -a "$LOG_FILE"; }
-error() { log "${RED}ERRO: $1${NC}" >&2; echo -e "${RED}[ERRO] Instalação falhou.${NC}"; exit 1; }
+error() { log "${RED}ERRO: $1${NC}" >&2; echo -e "${RED}? Instalação falhou.${NC}"; exit 1; }
 success() { log "${GREEN}SUCESSO: $1${NC}"; }
 warn() { log "${YELLOW}AVISO: $1${NC}"; }
 
@@ -36,11 +36,11 @@ fi
 
 # === 2. Verificar sistema (scripts locais) ===
 log "Verificando requisitos do sistema..."
-cd "$SCRIPT_DIR/utils" && ./check-system.sh
+bash "$SCRIPT_DIR/utils/check-system.sh"
 
 # === 3. Configurar firewall ===
 log "Configurando firewall..."
-./setup-firewall.sh
+bash "$SCRIPT_DIR/utils/setup-firewall.sh"
 
 # === 4. Atualizar sistema ===
 apt update && apt upgrade -y
@@ -122,7 +122,7 @@ docker compose up -d || error "Falha ao iniciar xPanel"
 success "xPanel está rodando atrás do Traefik!"
 
 # === 11. Configurar backup automático ===
-echo -e "\n${GREEN}[INFO] Deseja configurar backup automático?${NC}"
+echo -e "\n${GREEN}?? Deseja configurar backup automático?${NC}"
 echo "1) Desativado"
 echo "2) Diário (às 2h da manhã)"
 echo "3) Semanal (domingo, 2h)"

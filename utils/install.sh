@@ -8,6 +8,7 @@ set -euo pipefail
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
+BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Diretórios
@@ -34,21 +35,21 @@ if [ "$EUID" -ne 0 ]; then
     error "Execute como root: sudo bash install.sh"
 fi
 
-# === 2. Ubuntu check ===
-if ! command -v lsb_release &> /dev/null; then
-    error "Ubuntu não detectado."
+# === 2. Verificar sistema (chamando check-system.sh) ===
+if [ -d "/opt/xpanel-installer" ]; then
+    cd /opt/xpanel-installer/utils && ./check-system.sh
+else
+    # Se ainda não clonado, execute diretamente
+    cd "$(dirname "$0")" && ./check-system.sh
 fi
 
-UBUNTU_VERSION=$(lsb_release -rs)
-if ! [[ "$UBUNTU_VERSION" =~ ^(20.04|22.04|24.04)$ ]]; then
-    error "Ubuntu $UBUNTU_VERSION não suportado."
-fi
-success "Ubuntu $UBUNTU_VERSION OK."
+# === 3. Configurar firewall ===
+cd /opt/xpanel-installer/utils && ./setup-firewall.sh
 
-# === 3. Atualizar sistema ===
+# === 4. Atualizar sistema ===
 apt update && apt upgrade -y
 
-# === 4. Docker ===
+# === 5. Docker ===
 if ! command -v docker &> /dev/null; then
     log "Instalando Docker..."
     curl -fsSL https://get.docker.com | sh
@@ -56,11 +57,11 @@ if ! command -v docker &> /dev/null; then
     success "Docker instalado."
 fi
 
-# === 5. Criar rede Traefik ===
+# === 6. Criar rede Traefik ===
 docker network create traefik-network 2>/dev/null || true
 success "Rede traefik-network criada."
 
-# === 6. Instalar Traefik ===
+# === 7. Instalar Traefik ===
 log "Configurando Traefik como proxy reverso..."
 
 mkdir -p "$TRAEFIK_DIR" "$TRAEFIK_DIR/config"
@@ -88,7 +89,7 @@ cd "$TRAEFIK_DIR"
 docker compose up -d || error "Falha ao iniciar Traefik"
 success "Traefik está rodando com SSL automático!"
 
-# === 7. Perguntar IP ou Domínio ===
+# === 8. Perguntar IP ou Domínio ===
 read -p "Acessar via IP ou Domínio? [ip/dominio]: " ACCESS_TYPE
 if [[ "$ACCESS_TYPE" == "dominio" ]]; then
     read -p "Domínio ou subdomínio (ex: painel.seusite.com): " DOMAIN
@@ -97,7 +98,7 @@ else
     DOMAIN="$IP"
 fi
 
-# === 8. Credenciais do xPanel ===
+# === 9. Credenciais do xPanel ===
 log "Configurando usuário admin..."
 
 while true; do
@@ -113,7 +114,7 @@ while true; do
     [ "$ADMIN_PASS" = "$ADMIN_PASS_CONFIRM" ] && break || warn "Senhas não coincidem."
 done
 
-# === 9. Clonar xPanel ===
+# === 10. Clonar xPanel ===
 rm -rf "$CONFIG_DIR"
 git clone "$GITHUB_XPANEL_REPO" "$CONFIG_DIR" || error "Falha ao clonar xpanel-config"
 cd "$CONFIG_DIR"
@@ -131,7 +132,7 @@ success ".env criado e protegido"
 docker compose up -d || error "Falha ao iniciar xPanel"
 success "xPanel está rodando atrás do Traefik!"
 
-# === 10. Comandos úteis ===
+# === 11. Comandos úteis ===
 cat >> /root/.bashrc << 'EOF'
 
 # Comandos xPanel
@@ -144,7 +145,7 @@ xpanel-uninstall() {
 }
 EOF
 
-# === 11. Relatório Final ===
+# === 12. Relatório Final ===
 echo -e "
 ${GREEN}========================================${NC}
        ✅ INSTALAÇÃO CONCLUÍDA!
@@ -162,9 +163,8 @@ O xPanel foi instalado com sucesso com Traefik e SSL automático.
   xpanel-update   → Atualizar o painel
   xpanel-uninstall → Desinstalar tudo
 
-🔐 Arquivos protegidos:
-  - /opt/traefik/acme.json     → Certificados SSL (600)
-  - /opt/xpanel-config/.env    → Credenciais (600)
+🔐 O SSL será emitido automaticamente pelo Traefik
+   em alguns segundos (verifique no navegador)
 
 📄 Log da instalação: $LOG_FILE
 

@@ -1,4 +1,4 @@
-# xPanel Installer with Traefik
+#Instalador xPanel com Traefik
 
 Este repositório contém um **instalador automático** para o **xPanel**, com suporte a **SSL automático**, **proxy reverso** e **segurança total**.
 
@@ -15,4 +15,5 @@ Este repositório contém um **instalador automático** para o **xPanel**, com s
 ### 1. Instalar na VPS (Linux)
 
 ```bash
-bash <(curl -sSL https://raw.githubusercontent.com/seuusuario/xpanel-installer/main/utils/install.sh)
+
+bash <(curl -sSL https://raw.githubusercontent.com/SxConnect/xpanel-installer/main/utils/install.sh)

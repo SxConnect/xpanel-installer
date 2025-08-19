@@ -172,3 +172,8 @@ O xPanel foi instalado com sucesso com Traefik e SSL automático.
 "
 
 exit 0
+
+cat >> /root/.bashrc << 'EOF'
+alias xpanel-backup='sudo bash /opt/xpanel-installer/utils/backup.sh'
+alias xpanel-status='bash /opt/xpanel-installer/utils/status.sh'
+EOF

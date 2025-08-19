@@ -1,6 +1,6 @@
 #!/bin/bash
 # backup.sh
-# Cria backup dos dados do xPanel e Traefik
+# Faz backup dos dados do xPanel e do certificado SSL
 # github.com/SxConnect/xpanel-installer
 
 set -euo pipefail
@@ -30,43 +30,39 @@ fi
 
 # === Criar diretório de backup ===
 mkdir -p "$BACKUP_DIR"
+
+# === Nome do backup ===
 BACKUP_NAME="xpanel-backup-$(date +'%Y%m%d-%H%M%S').tar.gz"
+BACKUP_PATH="$BACKUP_DIR/$BACKUP_NAME"
 
-# === Relatório inicial ===
-echo -e "
-📅 Iniciando backup em $(date)
-📁 Destino: $BACKUP_DIR/$BACKUP_NAME
-"
-
-# === Verificar se os diretórios existem ===
-if [ ! -d "$XPANEL_DATA" ]; then
-    warn "Pasta de dados do xPanel não encontrada: $XPANEL_DATA"
-    warn "Certifique-se de que o xPanel foi instalado."
-    exit 1
-fi
-
-if [ ! -f "$TRAEFIK_ACME" ]; then
-    warn "acme.json não encontrado: $TRAEFIK_ACME (SSL não será incluído)"
+# === Verificar se há dados para salvar ===
+if [ ! -d "$XPANEL_DATA" ] && [ ! -f "$TRAEFIK_ACME" ]; then
+    error "Nenhum dado encontrado para backup em $XPANEL_DATA ou $TRAEFIK_ACME"
 fi
 
 # === Criar backup ===
-log "Compactando dados do xPanel e acme.json..."
-tar -czf "$BACKUP_DIR/$BACKUP_NAME" \
-    -C /opt/xpanel-config data \
-    -C /opt traefik/acme.json 2>/dev/null || \
-    tar -czf "$BACKUP_DIR/$BACKUP_NAME" \
-        -C /opt/xpanel-config data 2>/dev/null
+log "Iniciando backup..."
+tar -czf "$BACKUP_PATH" \
+    -C /opt/xpanel-config data 2>/dev/null || true
 
-success "Backup criado: $BACKUP_DIR/$BACKUP_NAME"
+if [ -f "$TRAEFIK_ACME" ] && [ -s "$TRAEFIK_ACME" ]; then
+    tar -rzf "$BACKUP_PATH" \
+        -C /opt traefik/acme.json 2>/dev/null || true
+fi
 
-# === Mostrar tamanho e próximo passo ===
-SIZE=$(du -h "$BACKUP_DIR/$BACKUP_NAME" | cut -f1)
-echo -e "
-✅ Backup concluído!
-📦 Arquivo: $BACKUP_NAME
-📏 Tamanho: $SIZE
-📍 Caminho: $BACKUP_DIR/
+# === Verificar se o backup foi criado ===
+if [ -f "$BACKUP_PATH" ]; then
+    SIZE=$(du -h "$BACKUP_PATH" | cut -f1)
+    success "Backup criado com sucesso: $BACKUP_PATH ($SIZE)"
+    echo -e "
+📦 Backup concluído!
+   Arquivo: $BACKUP_NAME
+   Tamanho: $SIZE
+   Local: $BACKUP_DIR
 
-💡 Dica: Copie para outro local:
-   scp $BACKUP_DIR/$BACKUP_NAME usuario@outro-servidor:/caminho/
+💡 Dica: Copie para outro local com:
+   scp $BACKUP_PATH usuario@servidor:/caminho/
 "
+else
+    error "Falha ao criar o arquivo de backup"
+fi

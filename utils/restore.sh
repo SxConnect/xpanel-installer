@@ -1,7 +1,7 @@
 #!/bin/bash
 # restore.sh
 # Restaura o xPanel a partir de um backup
-# github.com/seuusuario/xpanel-installer
+# github.com/SxConnect/xpanel-installer
 
 set -euo pipefail
 
@@ -38,24 +38,23 @@ fi
 echo -e "
 ${BLUE}📦 Backups disponíveis:${NC}
 "
-BACKUPS=("$BACKUP_DIR"/*.tar.gz)
-for file in "${BACKUPS[@]}"; do
+for file in "$BACKUP_DIR"/*.tar.gz; do
     if [[ -f "$file" ]]; then
         SIZE=$(du -h "$file" | cut -f1)
-        DATE=$(stat -c %y "$file" | cut -d' ' -f1)
+        DATE=$(stat -c '%y' "$file" | cut -d' ' -f1)
         echo "  📅 $DATE | 📦 $(basename "$file") | 📏 $SIZE"
     fi
 done
 
 echo
-read -p "Digite o nome do arquivo de backup para restaurar: " BACKUP_NAME
+read -p "Digite o nome do backup para restaurar: " BACKUP_NAME
 BACKUP_PATH="$BACKUP_DIR/$BACKUP_NAME"
 
 if [ ! -f "$BACKUP_PATH" ]; then
-    error "Arquivo $BACKUP_NAME não encontrado em $BACKUP_DIR"
+    error "Backup '$BACKUP_NAME' não encontrado"
 fi
 
-# === Confirmação ===
+# === Confirmação crítica ===
 echo -e "\n${RED}⚠️  ATENÇÃO: Isso substituirá:${NC}"
 echo "   - Dados do xPanel: $XPANEL_DATA"
 echo "   - Certificado SSL: $TRAEFIK_ACME"
@@ -68,36 +67,48 @@ fi
 log "Parando containers..."
 docker stop xpanel-container traefik-proxy 2>/dev/null || true
 
-# === Fazer cópia de segurança atual (opcional) ===
+# === Fazer backup atual (antes de restaurar) ===
 TIMESTAMP=$(date +'%Y%m%d-%H%M%S')
-mkdir -p "$BACKUP_DIR/backup-before-restore-$TIMESTAMP"
-cp -r "$XPANEL_DATA" "$BACKUP_DIR/backup-before-restore-$TIMESTAMP/data" 2>/dev/null || true
-cp "$TRAEFIK_ACME" "$BACKUP_DIR/backup-before-restore-$TIMESTAMP/acme.json" 2>/dev/null || true
-success "Backup atual salvo antes da restauração"
+PRE_RESTORE="/opt/backups/backup-before-restore-$TIMESTAMP"
+mkdir -p "$PRE_RESTORE"
+
+if [ -d "$XPANEL_DATA" ]; then
+    cp -r "$XPANEL_DATA" "$PRE_RESTORE/data" 2>/dev/null && success "Backup atual do xPanel salvo"
+fi
+
+if [ -f "$TRAEFIK_ACME" ]; then
+    cp "$TRAEFIK_ACME" "$PRE_RESTORE/acme.json" 2>/dev/null && success "Backup atual do acme.json salvo"
+fi
 
 # === Extrair backup ===
 log "Restaurando $BACKUP_NAME..."
-mkdir -p /tmp/xpanel-restore
-tar -xzf "$BACKUP_PATH" -C /tmp/xpanel-restore || error "Falha ao extrair backup"
+TEMP_DIR="/tmp/xpanel-restore"
+rm -rf "$TEMP_DIR"
+mkdir -p "$TEMP_DIR"
+
+tar -xzf "$BACKUP_PATH" -C "$TEMP_DIR" || error "Falha ao extrair backup"
 
 # Restaurar dados do xPanel
-rm -rf "$XPANEL_DATA"
-mkdir -p "$(dirname "$XPANEL_DATA")"
-mv /tmp/xpanel-restore/data "$XPANEL_DATA"
-success "Dados do xPanel restaurados"
+if [ -d "$TEMP_DIR/data" ]; then
+    rm -rf "$XPANEL_DATA"
+    mv "$TEMP_DIR/data" "$XPANEL_DATA"
+    success "Dados do xPanel restaurados"
+else
+    warn "Nenhum dado do xPanel no backup"
+fi
 
 # Restaurar acme.json
-if [ -f "/tmp/xpanel-restore/acme.json" ]; then
+if [ -f "$TEMP_DIR/acme.json" ]; then
     mkdir -p "$(dirname "$TRAEFIK_ACME")"
-    mv /tmp/xpanel-restore/acme.json "$TRAEFIK_ACME"
+    mv "$TEMP_DIR/acme.json" "$TRAEFIK_ACME"
     chmod 600 "$TRAEFIK_ACME"
     success "Certificado SSL restaurado"
 fi
 
 # Limpar
-rm -rf /tmp/xpanel-restore
+rm -rf "$TEMP_DIR"
 
-# === Reiniciar containers ===
+# === Reiniciar serviços ===
 log "Reiniciando containers..."
 cd /opt/traefik && docker compose up -d
 cd /opt/xpanel-config && docker compose up -d
@@ -105,10 +116,9 @@ cd /opt/xpanel-config && docker compose up -d
 # === Sucesso ===
 echo -e "
 ${GREEN}✅ RESTAURAÇÃO CONCLUÍDA!${NC}
-O xPanel foi restaurado do backup: $BACKUP_NAME
+O sistema foi restaurado do backup: $BACKUP_NAME
 
 💡 Próximos passos:
 - Acesse: https://seupainel.com.br
-- Verifique se tudo está funcionando
-- O backup anterior foi salvo em: $BACKUP_DIR/backup-before-restore-$TIMESTAMP
+- O backup anterior foi salvo em: $PRE_RESTORE
 "

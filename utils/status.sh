@@ -1,7 +1,7 @@
 #!/bin/bash
 # status.sh
 # Mostra status do xPanel, Traefik e sistema
-# github.com/seuusuario/xpanel-installer
+# github.com/SxConnect/xpanel-installer
 
 set -euo pipefail
 
@@ -26,9 +26,9 @@ ${BLUE}========================================${NC}
 # === xPanel ===
 echo -e "${BLUE}🔧 xPanel${NC}"
 if docker ps --filter "name=xpanel-container" --format '{{.Status}}' | grep -q "Up"; then
-    PORT=$(docker port xpanel-container | grep 3000 | awk '{print $2}')
+    PORT=$(docker port xpanel-container 3000 | head -1 | cut -d: -f2 2>/dev/null || echo "não mapeado")
     echo -e "   ${GREEN}✅ Ativo${NC} | Container: xpanel-container"
-    echo -e "   🔗 Mapeado para: $PORT"
+    echo -e "   🔗 Porta interna: 3000 → $PORT"
 else
     echo -e "   ${RED}❌ Inativo${NC}"
 fi

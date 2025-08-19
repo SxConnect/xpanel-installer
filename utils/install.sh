@@ -1,6 +1,7 @@
 #!/bin/bash
-# xPanel Auto Installer com Traefik
-# github.com/seuusuario/xpanel-installer
+# install.sh - Instalador principal do xPanel (modo seguro)
+# Executado após o bootstrap clonar o repositório
+# github.com/SxConnect/xpanel-installer
 
 set -euo pipefail
 
@@ -8,7 +9,6 @@ set -euo pipefail
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
-BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Diretórios
@@ -17,8 +17,6 @@ LOG_FILE="$SCRIPT_DIR/install.log"
 TRAEFIK_DIR="/opt/traefik"
 CONFIG_DIR="/opt/xpanel-config"
 BACKUP_DIR="/opt/backups"
-GITHUB_TRAEFIK_COMPOSE="https://raw.githubusercontent.com/SxConnect/xpanel-installer/main/traefik/docker-compose.yml"
-GITHUB_XPANEL_REPO="https://github.com/seuusuario/xpanel-config.git"
 
 # Funções
 log() { echo -e "[$(date +'%H:%M:%S')] $1" | tee -a "$LOG_FILE"; }
@@ -29,22 +27,20 @@ warn() { log "${YELLOW}AVISO: $1${NC}"; }
 # === 0. Preparar ambiente ===
 mkdir -p "$SCRIPT_DIR" "$BACKUP_DIR"
 touch "$LOG_FILE"
-log "Iniciando instalador do xPanel com Traefik..."
+log "Iniciando instalador do xPanel (modo seguro)"
 
 # === 1. Root check ===
 if [ "$EUID" -ne 0 ]; then
     error "Execute como root: sudo bash install.sh"
 fi
 
-# === 2. Verificar sistema (chamando check-system.sh) ===
-if [ -d "/opt/xpanel-installer" ]; then
-    cd /opt/xpanel-installer/utils && ./check-system.sh
-else
-    cd "$(dirname "$0")" && ./check-system.sh
-fi
+# === 2. Verificar sistema (scripts locais) ===
+log "Verificando requisitos do sistema..."
+cd "$SCRIPT_DIR/utils" && ./check-system.sh
 
 # === 3. Configurar firewall ===
-cd /opt/xpanel-installer/utils && ./setup-firewall.sh
+log "Configurando firewall..."
+./setup-firewall.sh
 
 # === 4. Atualizar sistema ===
 apt update && apt upgrade -y
@@ -66,23 +62,11 @@ log "Configurando Traefik como proxy reverso..."
 
 mkdir -p "$TRAEFIK_DIR" "$TRAEFIK_DIR/config"
 
-# Baixar docker-compose.yml
-curl -sSL "$GITHUB_TRAEFIK_COMPOSE" -o "$TRAEFIK_DIR/docker-compose.yml" || error "Falha ao baixar configuração do Traefik"
-
-# Criar acme.json
-touch "$TRAEFIK_DIR/acme.json"
-echo '{}' > "$TRAEFIK_DIR/acme.json"
+# Copiar configuração local (seguro, sem curl)
+cp "$SCRIPT_DIR/traefik/docker-compose.yml" "$TRAEFIK_DIR/docker-compose.yml"
+cp "$SCRIPT_DIR/traefik/acme.json" "$TRAEFIK_DIR/acme.json" 2>/dev/null || echo '{}' > "$TRAEFIK_DIR/acme.json"
 chmod 600 "$TRAEFIK_DIR/acme.json"
-success "acme.json criado com permissão 600"
-
-# Criar dynamic.yml
-cat > "$TRAEFIK_DIR/config/dynamic.yml" << EOF
-http:
-  services:
-  routers:
-  middlewares:
-EOF
-success "dynamic.yml criado"
+cp "$SCRIPT_DIR/traefik/config/dynamic.yml" "$TRAEFIK_DIR/config/dynamic.yml"
 
 # Subir Traefik
 cd "$TRAEFIK_DIR"
@@ -114,21 +98,24 @@ while true; do
     [ "$ADMIN_PASS" = "$ADMIN_PASS_CONFIRM" ] && break || warn "Senhas não coincidem."
 done
 
-# === 10. Clonar xPanel ===
+# === 10. Instalar xPanel ===
+log "Instalando xPanel..."
+
 rm -rf "$CONFIG_DIR"
-git clone "$GITHUB_XPANEL_REPO" "$CONFIG_DIR" || error "Falha ao clonar xpanel-config"
-cd "$CONFIG_DIR"
+mkdir -p "$CONFIG_DIR"
+cp -r "$SCRIPT_DIR/xpanel-config/." "$CONFIG_DIR/"
 
 # Criar .env
-cat > .env << EOF
+cat > "$CONFIG_DIR/.env" << EOF
 ADMIN_USER=$ADMIN_USER
 ADMIN_PASS=$ADMIN_PASS
 DOMAIN=$DOMAIN
 EOF
-chmod 600 .env
+chmod 600 "$CONFIG_DIR/.env"
 success ".env criado e protegido"
 
 # Subir xPanel
+cd "$CONFIG_DIR"
 docker compose up -d || error "Falha ao iniciar xPanel"
 success "xPanel está rodando atrás do Traefik!"
 
@@ -143,37 +130,28 @@ read -p "Escolha (1-4): " BACKUP_FREQ
 CRON_TIME=""
 
 case $BACKUP_FREQ in
-    1)
-        warn "Backup automático desativado."
-        ;;
-    2)
-        CRON_TIME="0 2 * * *"
-        ;;
-    3)
-        CRON_TIME="0 2 * * 0"
-        ;;
+    1) warn "Backup automático desativado."; ;;
+    2) CRON_TIME="0 2 * * *"; ;;
+    3) CRON_TIME="0 2 * * 0"; ;;
     4)
         read -p "A cada quantas horas? (ex: 6, 12): " HOURS
-        if ! [[ "$HOURS" =~ ^[0-9]+$ ]] || [ "$HOURS" -lt 1 ]; then
-            warn "Horas inválidas. Backup não configurado."
-        else
+        if [[ "$HOURS" =~ ^[0-9]+$ ]] && [ "$HOURS" -ge 1 ]; then
             CRON_TIME="0 */$HOURS * * *"
+        else
+            warn "Horas inválidas. Backup não configurado."
         fi
         ;;
-    *)
-        warn "Opção inválida. Backup não configurado."
-        ;;
+    *) warn "Opção inválida. Backup não configurado."; ;;
 esac
 
-# Aplicar cron se definido
+# Aplicar cron
 if [ -n "$CRON_TIME" ]; then
     BACKUP_SCRIPT="/opt/xpanel-installer/utils/backup.sh"
     (crontab -l 2>/dev/null; echo "$CRON_TIME $BACKUP_SCRIPT") | crontab -
     success "Backup automático configurado: $CRON_TIME"
-    echo -e "📦 Backups serão salvos em: $BACKUP_DIR"
 fi
 
-# === 12. Comandos úteis no .bashrc ===
+# === 12. Comandos úteis ===
 cat >> /root/.bashrc << 'EOF'
 
 # Comandos xPanel (gerados pelo instalador)
@@ -189,9 +167,7 @@ xpanel-uninstall() {
         cd /opt/xpanel-config && docker compose down
         rm -rf /opt/xpanel-config /opt/traefik /opt/xpanel-installer /opt/backups 2>/dev/null || true
         sed -i '/xpanel-/d' /root/.bashrc 2>/dev/null || true
-        echo "✅ xPanel e Traefik desinstalados."
-    else
-        echo "❌ Desinstalação cancelada."
+        echo "✅ xPanel removido."
     fi
 }
 EOF
@@ -201,36 +177,17 @@ echo -e "
 ${GREEN}========================================${NC}
        ✅ INSTALAÇÃO CONCLUÍDA!
 ${GREEN}========================================${NC}
-O xPanel foi instalado com sucesso com Traefik e SSL automático.
+O xPanel foi instalado com segurança via repositório clonado.
 
-🔍 Informações de acesso:
-  🔗 URL: https://$DOMAIN
-  👤 Usuário: $ADMIN_USER
-  🔐 Senha: ****** (definida por você)
+🔍 Acesso:
+  🔗 https://$DOMAIN
+  👤 $ADMIN_USER
+  🔐 Senha definida por você
 
-🛠️ Comandos úteis:
-  xpanel-logs      → Ver logs em tempo real
-  xpanel-restart   → Reiniciar o serviço
-  xpanel-update    → Atualizar o painel
-  xpanel-backup    → Fazer backup dos dados
-  xpanel-restore   → Restaurar de um backup
-  xpanel-status    → Ver status do sistema
-  xpanel-uninstall → Desinstalar tudo
+🛠️ Comandos: xpanel-logs, xpanel-update, xpanel-backup
 
-📦 Backup automático: $(if [ -n "$CRON_TIME" ]; then echo "SIM ($CRON_TIME)"; else echo "NÃO"; fi)
-   Arquivos salvos em: $BACKUP_DIR
+📦 Backup automático: $( [ -n "$CRON_TIME" ] && echo "SIM ($CRON_TIME)" || echo "NÃO" )
 
-🔐 O SSL será emitido automaticamente pelo Traefik
-   em alguns segundos (verifique no navegador)
-
-📄 Log da instalação: $LOG_FILE
-
-🚀 O sistema está pronto para uso!
-
-```bash
-# === Criar alias para xpanel.sh ===
-echo "alias xpanel='bash <(curl -sSL https://raw.githubusercontent.com/SxConnect/xpanel-installer/main/utils/install.sh)'" >> /root/.bashrc
-success "Alias 'xpanel' adicionado ao .bashrc"
+📄 Log: $LOG_FILE
+🚀 Sistema pronto!
 "
-
-exit 0

@@ -18,7 +18,7 @@ warn() { log "${YELLOW}AVISO: $1${NC}"; }
 error() { log "${RED}ERRO: $1${NC}" >&2; exit 1; }
 success() { log "${GREEN}OK: $1${NC}"; }
 
-# === Verificar se é root ===
+# === Verificar root ===
 if [ "$EUID" -ne 0 ]; then
     error "Este script requer root. Execute com sudo."
 fi
@@ -31,7 +31,46 @@ if ! command -v ufw &> /dev/null; then
 fi
 
 # === Mostrar estado atual ===
-echo -e "
-${BLUE}========================================${NC}
-       🔥 CONFIGURAÇÃO DO FIREW
+if ufw status | grep -q "Status: active"; then
+    warn "O UFW já está ativo. Mantendo configuração atual."
+    exit 0
+fi
 
+# === Configurar regras ===
+log "Configurando regras do firewall..."
+
+ufw default deny incoming
+ufw default allow outgoing
+success "Política: bloquear entrada, permitir saída"
+
+ufw allow 22/tcp    # SSH
+ufw allow 80/tcp    # HTTP
+ufw allow 443/tcp   # HTTPS
+success "Portas 22, 80 e 443 liberadas"
+
+# === Perguntar se deseja ativar ===
+echo -e "\n${YELLOW}Ativar o firewall agora? (s/n)${NC}"
+echo "   - SSH (22) permanecerá acessível"
+echo "   - HTTP/HTTPS (80/443) liberados"
+echo "   - Outras portas bloqueadas"
+echo -n "Ativar UFW? (s/n): "
+read -n1 -r REPLY; echo
+
+if [[ ! $REPLY =~ ^[Ss]$ ]]; then
+    warn "Firewall não ativado. Execute 'ufw enable' depois, se desejar."
+    exit 0
+fi
+
+# === Ativar UFW ===
+echo 'y' | ufw enable > /dev/null 2>&1 || error "Falha ao ativar UFW"
+success "UFW ativado com sucesso"
+
+# === Mostrar status ===
+echo -e "
+${GREEN}✅ FIREWALL CONFIGURADO${NC}
+Regras ativas:
+  SSH (22)  → permitido
+  HTTP (80) → permitido
+  HTTPS (443) → permitido
+  Demais portas → bloqueadas
+"

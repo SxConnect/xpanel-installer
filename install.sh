@@ -271,7 +271,7 @@ version: '3.8'
 services:
   xpanel:
     # SUBSTITUA pela imagem correta do seu painel
-    image: seuusuario/xpanel:latest
+    image: sxconect/xpanel:latest
     container_name: xpanel-container
     restart: unless-stopped
     environment:
@@ -303,7 +303,7 @@ version: '3.8'
 services:
   xpanel:
     # SUBSTITUA pela imagem correta do seu painel
-    image: seuusuario/xpanel:latest
+    image: sxconect/xpanel:latest
     container_name: xpanel-container
     restart: unless-stopped
     environment:
